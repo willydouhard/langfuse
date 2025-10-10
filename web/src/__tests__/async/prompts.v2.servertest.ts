@@ -1640,7 +1640,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       "PATCH",
       `${baseURI}/prompt-1/versions/1`,
       {
-        newLabels: ["new-label"],
+        newLabels: ["production", "new-label"],
       },
       newAuth,
     );
@@ -1807,6 +1807,88 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  it("should allow removing custom labels", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    // Create prompt with multiple labels
+    const originalPrompt = await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["production", "candidate", "latest"],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Update to remove "candidate" label, keeping only "production"
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/versions/1`,
+      {
+        newLabels: ["production"],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(200);
+
+    const updatedPrompt = await prisma.prompt.findUnique({
+      where: {
+        id: originalPrompt.id,
+      },
+    });
+
+    // Should have "production" and "latest" (latest is preserved), but not "candidate"
+    expect(updatedPrompt?.labels).toContain("production");
+    expect(updatedPrompt?.labels).toContain("latest");
+    expect(updatedPrompt?.labels).not.toContain("candidate");
+    expect(updatedPrompt?.labels).toHaveLength(2);
+  });
+
+  it("should allow removing all custom labels while preserving latest", async () => {
+    const { projectId: newProjectId, auth: newAuth } =
+      await createOrgProjectAndApiKey();
+
+    // Create prompt with labels
+    const originalPrompt = await prisma.prompt.create({
+      data: {
+        name: "prompt-1",
+        projectId: newProjectId,
+        version: 1,
+        labels: ["production", "candidate", "latest"],
+        createdBy: "user-test",
+        prompt: "prompt-1",
+      },
+    });
+
+    // Update to remove all custom labels by passing empty array
+    const response = await makeAPICall(
+      "PATCH",
+      `${baseURI}/prompt-1/versions/1`,
+      {
+        newLabels: [],
+      },
+      newAuth,
+    );
+
+    expect(response.status).toBe(200);
+
+    const updatedPrompt = await prisma.prompt.findUnique({
+      where: {
+        id: originalPrompt.id,
+      },
+    });
+
+    // Should only have "latest" label
+    expect(updatedPrompt?.labels).toContain("latest");
+    expect(updatedPrompt?.labels).not.toContain("production");
+    expect(updatedPrompt?.labels).not.toContain("candidate");
+    expect(updatedPrompt?.labels).toHaveLength(1);
   });
 
   describe("prompt composability", () => {

@@ -52,13 +52,14 @@ export const updatePrompt = async (params: UpdatePromptParams) => {
 
       touchedPromptIds.push(prompt.id);
 
-      const newLabelsSet = new Set([...newLabels, ...prompt.labels]);
+      // Preserve the "latest" label if it exists, as it's managed internally
+      const latestLabel = prompt.labels.includes("latest") ? ["latest"] : [];
+      const newLabelsSet = new Set([...newLabels, ...latestLabel]);
       const removedLabels = [];
 
-      // Prompt labels cannot be removed here since the newLabelsSet includes the old labels
-      // Keeping this dependent check below as a safeguard in case the above changes
+      // Check which labels are being removed (excluding "latest")
       for (const oldLabel of prompt.labels) {
-        if (!newLabelsSet.has(oldLabel)) {
+        if (!newLabelsSet.has(oldLabel) && oldLabel !== "latest") {
           removedLabels.push(oldLabel);
         }
       }
